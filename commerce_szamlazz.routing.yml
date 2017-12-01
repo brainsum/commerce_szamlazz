@@ -1,0 +1,13 @@
+commerce_szamlazz.admin_settings:
+  path: '/admin/config/commerce_szamlazz/settings'
+  defaults:
+    _form: '\Drupal\commerce_szamlazz\Form\ModuleConfigurationForm'
+    _title: 'Szamlazz.hu admin settings'
+  requirements:
+    _permission: 'administer site configuration'
+commerce_szamlazz.invoice:
+  path: 'invoice/generate/{oid}'
+  defaults: 
+    _controller: '\Drupal\commerce_szamlazz\Controller\SzamlazzGenerate::generate' 
+  requirements: 
+    _permission: 'access content' 
