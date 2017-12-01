@@ -3,3 +3,9 @@ description: Szamlazz.hu commerce integration
 version: 1.0
 type: module
 core: 8.x
+
+package: Commerce
+
+dependencies:
+  - drupal:commerce
+
