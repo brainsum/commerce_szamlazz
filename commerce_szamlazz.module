@@ -1,1 +1,24 @@
 <?php
+
+/**
+ * @file
+ * commerce_szamlazz.module
+ */
+use Drupal\commerce_order\Entity\Order;
+
+/**
+ * Implements hook_entity_operation_alter().
+ *
+ * @param array $operations
+ * @param \Drupal\Core\Entity\EntityInterface $entity
+ */
+function commerce_szamlazz_entity_operation_alter(array &$operations, \Drupal\Core\Entity\EntityInterface $entity) {
+  if ($entity instanceof Order) {
+    // Add billing to order operations.
+    $operations['billing'] = [
+      'title' => t('Billing'),
+      'weight' => 30,
+      'url' => Drupal\Core\Url::fromRoute('commerce_szamlazz.invoice', ['commerce_order' => $entity->id()]),
+    ];
+  }
+}

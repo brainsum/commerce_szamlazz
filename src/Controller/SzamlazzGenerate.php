@@ -3,97 +3,173 @@
 namespace Drupal\commerce_szamlazz\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\commerce_price\Resolver\ChainPriceResolver;
+use Drupal\commerce_price\Resolver\DefaultPriceResolver;
+use Drupal\commerce_tax\Plugin\Commerce\TaxType\LocalTaxTypeBase;
 
 /**
  * Szamlazz class.
  */
 class SzamlazzGenerate extends ControllerBase {
 
+  protected $xml;
+  protected $xml_invoice;
+
   /**
    * Implements szmalazz.hu invoice generation code.
    */
-  public function generate($oid) {
+  public function generate($commerce_order) {
+    if (!$commerce_order) {
+      return NULL;
+    }
 
+    //$service = \Drupal::service('commerce_tax.tax_order_processor');
+    //$tax_type_storage = $service->process($commerce_order);
     $config = \Drupal::config('commerce_szamlazz.settings');
 
-    $order = \Drupal::entityTypeManager()->getStorage('commerce_order')->load($oid);
-    $xml = new \DOMDocument("1.0", "ISO-8859-15");
+    $profile = $commerce_order->getBillingProfile();
+    $data = $profile->get('address')->getValue();
+    $address = [];
+    if (isset($data[0])) {
+      $address = $data[0];
+    }
+    $ordered_products = $commerce_order->getItems();
 
-    $order_data['user'] = $order->get('uid')->getValue();
-    $order_data['total_price'] = $order->get('total_price')->getValue();
-    $order_data['ordered_items'] = $order->get('order_items')->getValue();
-    $order_data['billing_profile'] = $order->get('billing_profile')->getValue();
+    $this->xml = new \DOMDocument("1.0", "ISO-8859-15"); // TODO: set usable charset.
+    $this->prepareXmlHeader($config);
+    $this->setSeller();
+    $this->setCustomer($commerce_order, $address);
+    $this->setProductLines($ordered_products);
+    $this->xml->appendChild($this->xml_invoice);
 
-    $profile = $order->getBillingProfile();
-    $address = $profile->get('address')->getValue()[0];
-    $ordered_products = $order->getItems();
+    return $this->sendData($this->xml->saveXML());
+  }
 
-    $xml_invoice = $xml->createElement('xmlszamla');
-    $xml_invoice->setAttribute('xmlns', 'http://www.commerce_szamlazz.hu/xmlszamla');
-    $xml_invoice->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-    $xml_invoice->setAttribute('xsi:schemaLocation', 'http://www.commerce_szamlazz.hu/xmlszamla xmlszamla.xsd ');
+  /**
+   * Prepare xml header.
+   *
+   * @param object $config
+   */
+  protected function prepareXmlHeader($config) {
+    $this->xml_invoice = $this->xml->createElement('xmlszamla');
+    $this->xml_invoice->setAttribute('xmlns', 'http://www.commerce_szamlazz.hu/xmlszamla');
+    $this->xml_invoice->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+    $this->xml_invoice->setAttribute('xsi:schemaLocation', 'http://www.commerce_szamlazz.hu/xmlszamla xmlszamla.xsd ');
 
-    $xml_invoice_settings = $xml->createElement('beallitasok');
-    $xml_invoice_settings->appendChild($xml->createElement('felhasznalo', $config->get('szamlazz_user')));
-    $xml_invoice_settings->appendChild($xml->createElement('jelszo', $config->get('szamlazz_password')));
-    $xml_invoice_settings->appendChild($xml->createElement('eszamla', 'true'));
-    $xml_invoice_settings->appendChild($xml->createElement('szamlaLetoltes', 'true'));
-    $xml_invoice_settings->appendChild($xml->createElement('szamlaLetoltesPld', '2'));
-    $xml_invoice_settings->appendChild($xml->createElement('valaszVerzio', '1'));
-    $xml_invoice->appendChild($xml_invoice_settings);
+    $xml_invoice_settings = $this->xml->createElement('beallitasok');
+    $agent_user = $config->get('szamlazz_user') ? $config->get('szamlazz_user') : '';
+    $agent_pass = $config->get('szamlazz_password') ? $config->get('szamlazz_password') : '';
+    // TODO: break operation if agent user and password is empty.
+    $xml_invoice_settings->appendChild($this->xml->createElement('felhasznalo', $agent_user));
+    $xml_invoice_settings->appendChild($this->xml->createElement('jelszo', $agent_pass));
+    $xml_invoice_settings->appendChild($this->xml->createElement('eszamla', 'true'));
+    $xml_invoice_settings->appendChild($this->xml->createElement('szamlaLetoltes', 'true'));
+    $xml_invoice_settings->appendChild($this->xml->createElement('szamlaLetoltesPld', '2'));
+    $xml_invoice_settings->appendChild($this->xml->createElement('valaszVerzio', '1'));
+    $this->xml_invoice->appendChild($xml_invoice_settings);
 
-    $xml_invoice_header = $xml->createElement('fejlec');
-    $xml_invoice_header->appendChild($xml->createElement('keltDatum', date('Y-m-d')));
-    $xml_invoice_header->appendChild($xml->createElement('teljesitesDatum', date('Y-m-d')));
-    $xml_invoice_header->appendChild($xml->createElement('fizetesiHataridoDatum', date('Y-m-d')));
-    $xml_invoice_header->appendChild($xml->createElement('fizmod', 'Készpénz'));
-    $xml_invoice_header->appendChild($xml->createElement('penznem', 'Ft'));
-    $xml_invoice_header->appendChild($xml->createElement('szamlaNyelve', 'hu'));
-    $xml_invoice_header->appendChild($xml->createElement('megjegyzes', ''));
-    $xml_invoice_header->appendChild($xml->createElement('elolegszamla', 'false'));
-    $xml_invoice_header->appendChild($xml->createElement('vegszamla', 'false'));
-    $xml_invoice_header->appendChild($xml->createElement('dijbekero', 'false'));
-    $xml_invoice->appendChild($xml_invoice_header);
-    $xml_invoice_seller = $xml->createElement('elado');
-    $xml_invoice->appendChild($xml_invoice_seller);
+    $xml_invoice_header = $this->xml->createElement('fejlec');
+    $xml_invoice_header->appendChild($this->xml->createElement('keltDatum', date('Y-m-d')));
+    $xml_invoice_header->appendChild($this->xml->createElement('teljesitesDatum', date('Y-m-d')));
+    $xml_invoice_header->appendChild($this->xml->createElement('fizetesiHataridoDatum', date('Y-m-d')));
+    $xml_invoice_header->appendChild($this->xml->createElement('fizmod', 'Készpénz'));
+    $xml_invoice_header->appendChild($this->xml->createElement('penznem', 'Ft'));
+    $xml_invoice_header->appendChild($this->xml->createElement('szamlaNyelve', 'hu'));
+    $xml_invoice_header->appendChild($this->xml->createElement('megjegyzes', ''));
+    $xml_invoice_header->appendChild($this->xml->createElement('elolegszamla', 'false'));
+    $xml_invoice_header->appendChild($this->xml->createElement('vegszamla', 'false'));
+    $xml_invoice_header->appendChild($this->xml->createElement('dijbekero', 'false'));
+    $this->xml_invoice->appendChild($xml_invoice_header);
+  }
 
-    $xml_invoice_buyer = $xml->createElement('vevo');
+  /**
+   * Set sellers for xml document.
+   */
+  protected function setSeller() {
+    $xml_invoice_seller = $this->xml->createElement('elado');
+    $this->xml_invoice->appendChild($xml_invoice_seller);
+  }
 
-    $xml_invoice_buyer->appendChild($xml->createElement('nev', $address['family_name'] . ' ' . $address['given_name']));
-    $xml_invoice_buyer->appendChild($xml->createElement('irsz', $address['postal_code']));
-    $xml_invoice_buyer->appendChild($xml->createElement('telepules', $address['locality']));
-    $xml_invoice_buyer->appendChild($xml->createElement('cim', $address['address_line1']));
-    $xml_invoice_buyer->appendChild($xml->createElement('email', $order->get('mail')->getValue()[0]['value']));
-    $xml_invoice->appendChild($xml_invoice_buyer);
+  /**
+   * Set customer for xml document.
+   *
+   * @param type $order
+   * @param type $address
+   */
+  protected function setCustomer($order, $address) {
+    $xml_invoice_buyer = $this->xml->createElement('vevo');
+    // TODO: check address arrays are valid.
+    $xml_invoice_buyer->appendChild($this->xml->createElement('nev', $address['family_name'] . ' ' . $address['given_name']));
+    $xml_invoice_buyer->appendChild($this->xml->createElement('irsz', $address['postal_code']));
+    $xml_invoice_buyer->appendChild($this->xml->createElement('telepules', $address['locality']));
+    $xml_invoice_buyer->appendChild($this->xml->createElement('cim', $address['address_line1']));
+    $xml_invoice_buyer->appendChild($this->xml->createElement('email', $order->get('mail')->getValue()[0]['value']));
+    $this->xml_invoice->appendChild($xml_invoice_buyer);
+  }
 
-    $xml_invoice_line_items = $xml->createElement('tetelek');
+  /**
+   * Set product lines for xml document.
+   *
+   * @param object $ordered_products
+   */
+  protected function setProductLines($ordered_products) {
+    $xml_invoice_line_items = $this->xml->createElement('tetelek');
+
+    // Net price resolver.
+    $price_chain_resolver = \Drupal::service('commerce_price.chain_price_resolver');
+    $context = new \Drupal\commerce\Context(\Drupal::currentUser(), \Drupal::service('commerce_store.current_store')->getStore());
 
     foreach ($ordered_products as $key => $value) {
-      $xml_invoice_line_item = $xml->createElement('tetel');
+      $net_unit_price = $price_chain_resolver->resolve($value->getPurchasedEntity(), 1, $context);
+      $adjustments = $value->get('adjustments')->getValue();
+      foreach ($adjustments as $adjustment) {
+        $type = $adjustment['value']->getType();
+        if ($type === 'tax') {
+          $tax_percent = $adjustment['value']->getPercentage() * 100;
+          $tax_value = $adjustment['value']->getAmount()->getNumber();
+        }
+      }
+      //$tax_value = ($value->get('unit_price')->getValue()[0]['number'] * 27) / 100;
 
-      $tax_value = ($value->get('unit_price')->getValue()[0]['number'] * 27) / 100;
-      $xml_invoice_line_item->appendChild($xml->createElement('megnevezes', $value->get('title')->getValue()[0]['value']));
-      $xml_invoice_line_item->appendChild($xml->createElement('mennyiseg', $value->get('quantity')->getValue()[0]['value']));
-      $xml_invoice_line_item->appendChild($xml->createElement('mennyisegiEgyseg', 'db'));
-      $xml_invoice_line_item->appendChild($xml->createElement('nettoEgysegar', $value->get('unit_price')->getValue()[0]['number']));
-      $xml_invoice_line_item->appendChild($xml->createElement('afakulcs', 27));
-      $xml_invoice_line_item->appendChild($xml->createElement('nettoErtek', $value->get('unit_price')->getValue()[0]['number']));
-      $xml_invoice_line_item->appendChild($xml->createElement('afaErtek', $tax_value));
-      $xml_invoice_line_item->appendChild($xml->createElement('bruttoErtek', $value->get('total_price')->getValue()[0]['number'] + $tax_value));
+      $xml_invoice_line_item = $this->xml->createElement('tetel');
+
+      $quantity = $value->get('quantity')->value;
+      $total_net = $net_unit_price * $quantity;
+      $total_tax = $tax_value * $quantity;
+
+      $xml_invoice_line_item->appendChild($this->xml->createElement('megnevezes', $value->get('title')->value));
+      $xml_invoice_line_item->appendChild($this->xml->createElement('mennyiseg', $quantity));
+      $xml_invoice_line_item->appendChild($this->xml->createElement('mennyisegiEgyseg', 'db'));
+      $xml_invoice_line_item->appendChild($this->xml->createElement('nettoEgysegar', $net_unit_price));
+      $xml_invoice_line_item->appendChild($this->xml->createElement('afakulcs', $tax_percent));
+      $xml_invoice_line_item->appendChild($this->xml->createElement('nettoErtek', $total_net));
+      $xml_invoice_line_item->appendChild($this->xml->createElement('afaErtek', $total_tax));
+      $xml_invoice_line_item->appendChild($this->xml->createElement('bruttoErtek', $total_net + $total_tax));
       $xml_invoice_line_items->appendChild($xml_invoice_line_item);
     }
 
-    $xml_invoice->appendChild($xml_invoice_line_items);
-    $xml->appendChild($xml_invoice);
+    $this->xml_invoice->appendChild($xml_invoice_line_items);
+  }
 
-    $xmltext = $xml->saveXML();
+  /**
+   * Send data to szamlazz.hu agent.
+   *
+   * @param string $xmltext
+   *
+   * @return array
+   *
+   * @throws Exception
+   */
+  protected function sendData($xmltext) {
     $drupal_tmpfname = drupal_tempnam('private://', "szamlazzxml");
     $tmpfname = drupal_realpath($drupal_tmpfname);
     $handle = fopen($tmpfname, "w");
     fwrite($handle, $xmltext);
     fclose($handle);
 
+    // TODO: Get from configuration or constant.
     $agent_url = 'https://www.commerce_szamlazz.hu/szamla/';
+
     $download_invoice = TRUE;
     $ch = curl_init($agent_url);
 
@@ -127,6 +203,8 @@ class SzamlazzGenerate extends ControllerBase {
     $agent_body = substr($agent_response, $header_size);
     $http_error = curl_error($ch);
     curl_close($ch);
+
+    // TODO: check http error.
     //
     // Delete temp xml file.
     drupal_unlink($drupal_tmpfname);
@@ -155,6 +233,7 @@ class SzamlazzGenerate extends ControllerBase {
     }
 
     if ($http_error != "") {
+      
     }
     if ($is_error) {
       throw new Exception(t('Unable to create invoice.') . $agent_error_code);
@@ -175,6 +254,7 @@ class SzamlazzGenerate extends ControllerBase {
       '#type' => 'markup',
       '#markup' => 'Something went wrong!',
     ];
+
     return $result;
   }
 

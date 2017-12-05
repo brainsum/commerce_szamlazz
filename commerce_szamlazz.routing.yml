@@ -6,8 +6,13 @@ commerce_szamlazz.admin_settings:
   requirements:
     _permission: 'administer site configuration'
 commerce_szamlazz.invoice:
-  path: 'invoice/generate/{oid}'
+  path: 'admin/commerce/orders/{commerce_order}/billing'
   defaults: 
     _controller: '\Drupal\commerce_szamlazz\Controller\SzamlazzGenerate::generate' 
+    _title: 'Billing order'
+  options:
+    parameters:
+      commerce_order:
+        type: 'entity:commerce_order'
   requirements: 
     _permission: 'access content' 
