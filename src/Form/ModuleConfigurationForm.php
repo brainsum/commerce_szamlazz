@@ -51,6 +51,11 @@ class ModuleConfigurationForm extends ConfigFormBase {
       '#title' => $this->t('Download invoice after generation.'),
       '#default_value' => $config->get('szamlazz_download'),
     ];
+    $form['szamlazz_agent_url'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Szamlazz.hu user agent url'),
+      '#default_value' => $config->get('szamlazz_agent_url') !== null ? $config->get('szamlazz_agent_url') : 'https://www.szamlazz.hu/szamla/',
+    ];
     return parent::buildForm($form, $form_state);
   }
 
@@ -63,6 +68,7 @@ class ModuleConfigurationForm extends ConfigFormBase {
       ->set('szamlazz_user', $form_state->getValue('szamlazz_user'))
       ->set('szamlazz_password', $form_state->getValue('szamlazz_password'))
       ->set('szamlazz_download', $form_state->getValue('szamlazz_download'))
+      ->set('szamlazz_agent_url', $form_state->getValue('szamlazz_agent_url'))
       ->save();
   }
 
