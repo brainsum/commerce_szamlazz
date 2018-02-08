@@ -2,10 +2,8 @@
 
 namespace Drupal\commerce_szamlazz\Controller;
 
+use Drupal\commerce\Context;
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\commerce_price\Resolver\ChainPriceResolver;
-use Drupal\commerce_price\Resolver\DefaultPriceResolver;
-use Drupal\commerce_tax\Plugin\Commerce\TaxType\LocalTaxTypeBase;
 
 /**
  * Szamlazz class.
@@ -23,19 +21,20 @@ class SzamlazzGenerate extends ControllerBase {
       return NULL;
     }
 
-    //$service = \Drupal::service('commerce_tax.tax_order_processor');
-    //$tax_type_storage = $service->process($commerce_order);
+    // $service = \Drupal::service('commerce_tax.tax_order_processor');
+    // $tax_type_storage = $service->process($commerce_order);
     $config = \Drupal::config('commerce_szamlazz.settings');
 
     $profile = $commerce_order->getBillingProfile();
-    $data = $profile->get('address')->getValue();
+    $data    = $profile->get('address')->getValue();
     $address = [];
     if (isset($data[0])) {
       $address = $data[0];
     }
     $ordered_products = $commerce_order->getItems();
 
-    $this->xml = new \DOMDocument("1.0", "ISO-8859-15"); // TODO: set usable charset.
+    // TODO-: set usable charset. (this is used in the example they have in the documentation)
+    $this->xml = new \DOMDocument("1.0", "ISO-8859-2");
     $this->prepareXmlHeader($config);
     $this->setSeller();
     $this->setCustomer($commerce_order, $address);
@@ -52,14 +51,20 @@ class SzamlazzGenerate extends ControllerBase {
    */
   protected function prepareXmlHeader($config) {
     $this->xml_invoice = $this->xml->createElement('xmlszamla');
-    $this->xml_invoice->setAttribute('xmlns', 'http://www.commerce_szamlazz.hu/xmlszamla');
+    $this->xml_invoice->setAttribute('xmlns', 'http://www.szamlazz.hu/xmlszamla');
     $this->xml_invoice->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-    $this->xml_invoice->setAttribute('xsi:schemaLocation', 'http://www.commerce_szamlazz.hu/xmlszamla xmlszamla.xsd ');
+    $this->xml_invoice->setAttribute('xsi:schemaLocation', 'http://www.szamlazz.hu/xmlszamla xmlszamla.xsd ');
 
     $xml_invoice_settings = $this->xml->createElement('beallitasok');
-    $agent_user = $config->get('szamlazz_user') ? $config->get('szamlazz_user') : '';
-    $agent_pass = $config->get('szamlazz_password') ? $config->get('szamlazz_password') : '';
-    // TODO: break operation if agent user and password is empty.
+    $agent_user           = $config->get('szamlazz_user') ? $config->get('szamlazz_user') : FALSE;
+    $agent_pass           = $config->get('szamlazz_password') ? $config->get('szamlazz_password') : FALSE;
+    // todo-: break operation if agent user and password is empty.
+    if (!$agent_user) {
+      throw new \exception('szamlazz.hu api user not set!');
+    }
+    if (!$agent_pass) {
+      throw new \exception('szamlazz.hu api password not set!');
+    }
     $xml_invoice_settings->appendChild($this->xml->createElement('felhasznalo', $agent_user));
     $xml_invoice_settings->appendChild($this->xml->createElement('jelszo', $agent_pass));
     $xml_invoice_settings->appendChild($this->xml->createElement('eszamla', 'true'));
@@ -93,8 +98,8 @@ class SzamlazzGenerate extends ControllerBase {
   /**
    * Set customer for xml document.
    *
-   * @param type $order
-   * @param type $address
+   * @param mixed $order
+   * @param mixed $address
    */
   protected function setCustomer($order, $address) {
     $xml_invoice_buyer = $this->xml->createElement('vevo');
@@ -117,19 +122,20 @@ class SzamlazzGenerate extends ControllerBase {
 
     // Net price resolver.
     $price_chain_resolver = \Drupal::service('commerce_price.chain_price_resolver');
-    $context = new \Drupal\commerce\Context(\Drupal::currentUser(), \Drupal::service('commerce_store.current_store')->getStore());
+    $context              = new Context(\Drupal::currentUser(), \Drupal::service('commerce_store.current_store')->getStore());
 
     foreach ($ordered_products as $key => $value) {
       $net_unit_price = $price_chain_resolver->resolve($value->getPurchasedEntity(), 1, $context);
+      $net_unit_price = $net_unit_price->getNumber();
       $adjustments = $value->get('adjustments')->getValue();
+
       foreach ($adjustments as $adjustment) {
         $type = $adjustment['value']->getType();
         if ($type === 'tax') {
           $tax_percent = $adjustment['value']->getPercentage() * 100;
-          $tax_value = $adjustment['value']->getAmount()->getNumber();
+          $tax_value   = $adjustment['value']->getAmount()->getNumber();
         }
       }
-      //$tax_value = ($value->get('unit_price')->getValue()[0]['number'] * 27) / 100;
 
       $xml_invoice_line_item = $this->xml->createElement('tetel');
 
@@ -158,20 +164,20 @@ class SzamlazzGenerate extends ControllerBase {
    *
    * @return array
    *
-   * @throws Exception
+   * @throws \exception
    */
   protected function sendData($xmltext) {
     $drupal_tmpfname = drupal_tempnam('private://', "szamlazzxml");
-    $tmpfname = drupal_realpath($drupal_tmpfname);
-    $handle = fopen($tmpfname, "w");
+    $tmpfname        = drupal_realpath($drupal_tmpfname);
+    $handle          = fopen($tmpfname, "w");
     fwrite($handle, $xmltext);
     fclose($handle);
 
     // TODO: Get from configuration or constant.
-    $agent_url = 'https://www.commerce_szamlazz.hu/szamla/';
+    $agent_url = 'https://www.szamlazz.hu/szamla/';
 
     $download_invoice = TRUE;
-    $ch = curl_init($agent_url);
+    $ch               = curl_init($agent_url);
 
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
     curl_setopt($ch, CURLOPT_POST, TRUE);
@@ -189,7 +195,7 @@ class SzamlazzGenerate extends ControllerBase {
       curl_setopt($ch, CURLOPT_COOKIE, $_SESSION['szamlazz_cookie']);
     }
     $agent_response = curl_exec($ch);
-    $http_error = curl_error($ch);
+    $http_error     = curl_error($ch);
 
     $agent_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
@@ -213,45 +219,67 @@ class SzamlazzGenerate extends ControllerBase {
 
     $is_error = FALSE;
 
-    $agent_error = '';
+    $agent_error      = '';
     $agent_error_code = '';
-    $invoice_number = '';
+    $invoice_number   = '';
     foreach ($header_array as $val) {
       if (substr($val, 0, strlen('szlahu')) === 'szlahu') {
         if (substr($val, 0, strlen('szlahu_error:')) === 'szlahu_error:') {
-          $is_error = TRUE;
+          $is_error    = TRUE;
           $agent_error = substr($val, strlen('szlahu_error:'));
         }
         if (substr($val, 0, strlen('szlahu_error_code:')) === 'szlahu_error_code:') {
-          $is_error = TRUE;
+          $is_error         = TRUE;
           $agent_error_code = substr($val, strlen('szlahu_error_code:'));
         }
         if (substr($val, 0, strlen('szlahu_szamlaszam:')) === 'szlahu_szamlaszam:') {
           $invoice_number = trim(substr($val, strlen('szlahu_szamlaszam:')));
         }
       }
+      if (substr($val, 0, strlen('Content-Disposition:')) === 'Content-Disposition:') {
+        $invoicelink = explode('filename=', $val);
+        $invoice_link = 'https://www.szamlazz.hu/szamla/genpdf/' . $invoicelink[1];
+      }
     }
 
     if ($http_error != "") {
-      
+
     }
     if ($is_error) {
-      throw new Exception(t('Unable to create invoice.') . $agent_error_code);
+      throw new \exception(t('Unable to create invoice.') . $agent_error_code);
     }
     else {
 
       // If ($download_invoice) {
       //   Save the invoice locally if necessary
       // }.
-      $result = [
+      $markup = [
         '#type' => 'markup',
-        '#markup' => t('Invoice generated successfully!'),
+        'message' => [
+          '#prefix' => '<h2>',
+          '#suffix' => '</h2>',
+          '#markup' => t('Invoice generated successfully, with invoice number: ') . '<a href="' . $invoice_link . '">' . $invoice_number . '</a>',
+          'szamlak' => [
+            '#prefix' => '<div><a href="https://www.szamlazz.hu/szamla/">',
+            '#suffix' => '</a></div>',
+            '#markup' => t('Click to view all invoces'),
+          ],
+        ],
+        'return' => [
+          '#prefix' => '<div>',
+          '#suffix' => '</div>',
+          'link' => [
+            '#prefix' => '<a href="/admin/commerce/orders">',
+            '#suffix' => '</a>',
+            '#markup' => t('Return to orders'),
+          ], 
+        ],
       ];
-      return $result;
+      return $markup;
     }
 
     $result = [
-      '#type' => 'markup',
+      '#type'   => 'markup',
       '#markup' => 'Something went wrong!',
     ];
 
