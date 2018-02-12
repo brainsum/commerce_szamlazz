@@ -4,6 +4,7 @@ namespace Drupal\commerce_szamlazz\Controller;
 
 use Drupal\commerce\Context;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Entity\EntityInterface;
 
 /**
  * Szamlazz class.
@@ -12,6 +13,8 @@ class SzamlazzGenerate extends ControllerBase {
 
   protected $xml;
   protected $xml_invoice;
+  protected $config;
+  protected $order;
 
   /**
    * Implements szmalazz.hu invoice generation code.
@@ -21,13 +24,15 @@ class SzamlazzGenerate extends ControllerBase {
       return NULL;
     }
 
+    $this->order = $commerce_order;
+
     // $service = \Drupal::service('commerce_tax.tax_order_processor');
     // $tax_type_storage = $service->process($commerce_order);
-    $config = \Drupal::config('commerce_szamlazz.settings');
-
-    $profile = $commerce_order->getBillingProfile();
-    $data    = $profile->get('address')->getValue();
-    $address = [];
+    $config       = \Drupal::config('commerce_szamlazz.settings');
+    $this->config = $config;
+    $profile      = $commerce_order->getBillingProfile();
+    $data         = $profile->get('address')->getValue();
+    $address      = [];
     if (isset($data[0])) {
       $address = $data[0];
     }
@@ -173,8 +178,7 @@ class SzamlazzGenerate extends ControllerBase {
     fwrite($handle, $xmltext);
     fclose($handle);
 
-    // TODO: Get from configuration or constant.
-    $agent_url = 'https://www.szamlazz.hu/szamla/';
+    $agent_url = $this->config->get('szamlazz_agent_url');
 
     $download_invoice = TRUE;
     $ch               = curl_init($agent_url);
@@ -272,9 +276,19 @@ class SzamlazzGenerate extends ControllerBase {
             '#prefix' => '<a href="/admin/commerce/orders">',
             '#suffix' => '</a>',
             '#markup' => t('Return to orders'),
-          ], 
+          ],
         ],
       ];
+
+      $this->order->field_invoice_id = [
+        "uri" => $invoice_link,
+        "title" => $invoice_number,
+        "options" => [
+          "target" => "_blank",
+        ],
+      ];
+      // $this->order->szamlazz_invoice_id2->set('title', 'test_title');
+      $this->order->save();
       return $markup;
     }
 
