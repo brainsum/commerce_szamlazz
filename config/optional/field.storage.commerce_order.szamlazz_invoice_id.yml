@@ -3,13 +3,15 @@ status: true
 dependencies:
   module:
     - commerce_order
-    - link
 id: commerce_order.szamlazz_invoice_id
 field_name: szamlazz_invoice_id
 entity_type: commerce_order
-type: link
-settings: {  }
-module: link
+type: string
+settings:
+  max_length: 255
+  is_ascii: false
+  case_sensitive: false
+module: core
 locked: false
 cardinality: 1
 translatable: true

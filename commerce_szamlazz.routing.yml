@@ -1,5 +1,5 @@
 commerce_szamlazz.admin_settings:
-  path: '/admin/config/commerce_szamlazz/settings'
+  path: '/admin/commerce/config/szamlazz'
   defaults:
     _form: '\Drupal\commerce_szamlazz\Form\ModuleConfigurationForm'
     _title: 'Szamlazz.hu admin settings'

@@ -29,5 +29,5 @@ See: https://www.drupal.org/documentation/install/modules-themes/modules-8 for f
 ## Configuration
 
 To be able to use the module you will have to create a user at https://www.szamlazz.hu
-After the module is enabled and and you created a user, head over to the settings form (/admin/config/commerce_szamlazz/settings) and fill in the necessary information that the API requires
+After the module is enabled and and you created a user, head over to the settings form (/admin/commerce/config/szamlazz) and fill in the necessary information that the API requires
 

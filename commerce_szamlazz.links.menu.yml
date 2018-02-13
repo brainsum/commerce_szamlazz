@@ -1,6 +1,6 @@
 commerce_szamlazz.admin_settings:
   title: 'Szamlazz admin settings'
   description: 'Administration form'
-  parent: system.admin_config_development
+  parent: commerce.configuration
   route_name: commerce_szamlazz.admin_settings
   weight: 100

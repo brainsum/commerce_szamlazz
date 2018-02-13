@@ -4,7 +4,11 @@
  * @file
  * commerce_szamlazz.module
  */
+
+use Drupal\Core\Url;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\commerce_order\Entity\Order;
+use Drupal\views\ViewExecutable;
 
 /**
  * Implements hook_entity_operation_alter().
@@ -12,13 +16,34 @@ use Drupal\commerce_order\Entity\Order;
  * @param array $operations
  * @param \Drupal\Core\Entity\EntityInterface $entity
  */
-function commerce_szamlazz_entity_operation_alter(array &$operations, \Drupal\Core\Entity\EntityInterface $entity) {
+function commerce_szamlazz_entity_operation_alter(array &$operations, EntityInterface $entity) {
   if ($entity instanceof Order) {
     // Add billing to order operations.
     $operations['billing'] = [
       'title' => t('Billing'),
       'weight' => 30,
-      'url' => Drupal\Core\Url::fromRoute('commerce_szamlazz.invoice', ['commerce_order' => $entity->id()]),
+      'url' => Url::fromRoute('commerce_szamlazz.invoice', ['commerce_order' => $entity->id()]),
     ];
+  }
+}
+
+/**
+ *
+ */
+function commerce_szamlazz_views_pre_view(ViewExecutable $view, $display_id, array &$args) {
+  if ($view->id() == 'commerce_orders' && $display_id === 'page_1') {
+    $options = [
+      'id' => 'area_text_custom',
+      'table' => 'views',
+      'field' => 'area_text_custom',
+      'relationship' => 'none',
+      'group_type' => 'none',
+      'admin_label' => '',
+      'empty' => TRUE,
+      'tokenize' => FALSE,
+      'content' => '<a href="https://www.szamlazz.hu/szamla/szamlakereso" target="_blank"><h2>' . t('View invoices') . '</h2></a>',
+      'plugin_id' => 'text_custom',
+    ];
+    $view->setHandler('page_1', 'header', 'area_text_custom', $options);
   }
 }

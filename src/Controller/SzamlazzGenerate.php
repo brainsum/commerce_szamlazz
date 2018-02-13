@@ -23,7 +23,17 @@ class SzamlazzGenerate extends ControllerBase {
     if (!$commerce_order) {
       return NULL;
     }
-
+    if(isset($commerce_order->szamlazz_invoice_id->value)){
+      $invoice_link = '<a href="' . $commerce_order->szamlazz_invoice_id->uri . '">' . $commerce_order->szamlazz_invoice_id->title . '</a>';
+      drupal_set_message(t('Order already invoiced: <b>@invoice_number</b>', 
+        array('@invoice_number' => $commerce_order->szamlazz_invoice_id->value)), 'error');
+      return [
+        '#type' => 'markup',
+        '#prefix' => '<a href="'.$_SERVER['HTTP_REFERER'].'">',
+        '#suffix' => '</a>',
+        '#markup' => t('Return to previous page'),
+      ];
+    }
     $this->order = $commerce_order;
 
     // $service = \Drupal::service('commerce_tax.tax_order_processor');
@@ -40,13 +50,22 @@ class SzamlazzGenerate extends ControllerBase {
 
     // TODO-: set usable charset. (this is used in the example they have in the documentation)
     $this->xml = new \DOMDocument("1.0", "ISO-8859-2");
-    $this->prepareXmlHeader($config);
-    $this->setSeller();
-    $this->setCustomer($commerce_order, $address);
-    $this->setProductLines($ordered_products);
-    $this->xml->appendChild($this->xml_invoice);
+    $test = $this->prepareXmlHeader($config);
+    if(!$test){
+      return array(
+        '#type' => 'markup',
+        '#prefix' => '<div>',
+        '#suffix' => '</div>',
+        '#markup' => '',
+      );
+    }else{
+      $this->setSeller();
+      $this->setCustomer($commerce_order, $address);
+      $this->setProductLines($ordered_products);
+      $this->xml->appendChild($this->xml_invoice);
 
-    return $this->sendData($this->xml->saveXML());
+      return $this->sendData($this->xml->saveXML());      
+    }
   }
 
   /**
@@ -63,13 +82,21 @@ class SzamlazzGenerate extends ControllerBase {
     $xml_invoice_settings = $this->xml->createElement('beallitasok');
     $agent_user           = $config->get('szamlazz_user') ? $config->get('szamlazz_user') : FALSE;
     $agent_pass           = $config->get('szamlazz_password') ? $config->get('szamlazz_password') : FALSE;
+
     // todo-: break operation if agent user and password is empty.
-    if (!$agent_user) {
-      throw new \exception('szamlazz.hu api user not set!');
+
+    if (!$agent_user || !$agent_pass || strlen($agent_user) == 0) {
+      // throw new \exception('szamlazz.hu api user not set!');
+      // 
+      $user = \Drupal::currentUser()->getRoles();
+      if(in_array("administrator", $user)){
+        drupal_set_message(t('Api credentials are not set!! Please set them <a href="/admin/commerce/config/szamlazz">Here</a>'), 'error');
+      }else{
+        drupal_set_message(t('Szamlazz api is not set correctly please contact the site administrator!'), 'error');
+      }
+      return false;
     }
-    if (!$agent_pass) {
-      throw new \exception('szamlazz.hu api password not set!');
-    }
+
     $xml_invoice_settings->appendChild($this->xml->createElement('felhasznalo', $agent_user));
     $xml_invoice_settings->appendChild($this->xml->createElement('jelszo', $agent_pass));
     $xml_invoice_settings->appendChild($this->xml->createElement('eszamla', 'true'));
@@ -90,6 +117,7 @@ class SzamlazzGenerate extends ControllerBase {
     $xml_invoice_header->appendChild($this->xml->createElement('vegszamla', 'false'));
     $xml_invoice_header->appendChild($this->xml->createElement('dijbekero', 'false'));
     $this->xml_invoice->appendChild($xml_invoice_header);
+    return true;
   }
 
   /**
@@ -262,9 +290,9 @@ class SzamlazzGenerate extends ControllerBase {
         'message' => [
           '#prefix' => '<h2>',
           '#suffix' => '</h2>',
-          '#markup' => t('Invoice generated successfully, with invoice number: ') . '<a href="' . $invoice_link . '">' . $invoice_number . '</a>',
+          '#markup' => t('Invoice generated successfully, invoice number: <u>@invoice</u>', ['@invoice' => $invoice_number]),
           'szamlak' => [
-            '#prefix' => '<div><a href="https://www.szamlazz.hu/szamla/">',
+            '#prefix' => '<div><a href="https://www.szamlazz.hu/szamla/szamlakereso">',
             '#suffix' => '</a></div>',
             '#markup' => t('Click to view all invoces'),
           ],
@@ -280,14 +308,7 @@ class SzamlazzGenerate extends ControllerBase {
         ],
       ];
 
-      $this->order->field_invoice_id = [
-        "uri" => $invoice_link,
-        "title" => $invoice_number,
-        "options" => [
-          "target" => "_blank",
-        ],
-      ];
-      // $this->order->szamlazz_invoice_id2->set('title', 'test_title');
+      $this->order->szamlazz_invoice_id->value = $invoice_number;
       $this->order->save();
       return $markup;
     }
