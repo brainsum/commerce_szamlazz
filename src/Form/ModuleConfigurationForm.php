@@ -30,7 +30,8 @@ class ModuleConfigurationForm extends ConfigFormBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, FormStateInterface $form_state,
+  public function buildForm(array $form,
+  FormStateInterface $form_state,
     Request $request = NULL) {
     // Config get for default values;.
     $config = $this->config('commerce_szamlazz.settings');
