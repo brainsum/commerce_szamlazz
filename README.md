@@ -1,4 +1,6 @@
-Szamlazz.hu integration in Drupal Commerce 2.x
+[![Build Status](https://travis-ci.org/brainsum/commerce_szamlazz.svg?branch=master)](https://travis-ci.org/brainsum/commerce_szamlazz)
+
+# szamlazz.hu integration for Drupal Commerce 2.x
 
 ## Contents
 
