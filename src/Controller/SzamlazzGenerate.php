@@ -11,7 +11,7 @@ use Drupal\Core\Controller\ControllerBase;
 class SzamlazzGenerate extends ControllerBase {
 
   protected $xml;
-  protected $xml_invoice;
+  protected $xmlInvoice;
   protected $config;
   protected $order;
 
@@ -75,7 +75,7 @@ class SzamlazzGenerate extends ControllerBase {
         ];
       }
       $this->setProductLines($ordered_products);
-      $this->xml->appendChild($this->xml_invoice);
+      $this->xml->appendChild($this->xmlInvoice);
 
       return $this->sendData($this->xml->saveXML());
     }
@@ -85,12 +85,13 @@ class SzamlazzGenerate extends ControllerBase {
    * Prepare xml header.
    *
    * @param object $config
+   *   The object configuration object.
    */
   protected function prepareXmlHeader($config) {
-    $this->xml_invoice = $this->xml->createElement('xmlszamla');
-    $this->xml_invoice->setAttribute('xmlns', 'http://www.szamlazz.hu/xmlszamla');
-    $this->xml_invoice->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
-    $this->xml_invoice->setAttribute('xsi:schemaLocation', 'http://www.szamlazz.hu/xmlszamla xmlszamla.xsd ');
+    $this->xmlInvoice = $this->xml->createElement('xmlszamla');
+    $this->xmlInvoice->setAttribute('xmlns', 'http://www.szamlazz.hu/xmlszamla');
+    $this->xmlInvoice->setAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+    $this->xmlInvoice->setAttribute('xsi:schemaLocation', 'http://www.szamlazz.hu/xmlszamla xmlszamla.xsd ');
 
     $xml_invoice_settings = $this->xml->createElement('beallitasok');
     $agent_user           = $config->get('szamlazz_user') ? $config->get('szamlazz_user') : FALSE;
@@ -110,13 +111,19 @@ class SzamlazzGenerate extends ControllerBase {
       return FALSE;
     }
 
-    $xml_invoice_settings->appendChild($this->xml->createElement('felhasznalo', $agent_user));
-    $xml_invoice_settings->appendChild($this->xml->createElement('jelszo', $agent_pass));
-    $xml_invoice_settings->appendChild($this->xml->createElement('eszamla', 'true'));
-    $xml_invoice_settings->appendChild($this->xml->createElement('szamlaLetoltes', 'true'));
-    $xml_invoice_settings->appendChild($this->xml->createElement('szamlaLetoltesPld', '2'));
-    $xml_invoice_settings->appendChild($this->xml->createElement('valaszVerzio', '1'));
-    $this->xml_invoice->appendChild($xml_invoice_settings);
+    $xml_invoice_settings
+      ->appendChild($this->xml->createElement('felhasznalo', $agent_user));
+    $xml_invoice_settings
+      ->appendChild($this->xml->createElement('jelszo', $agent_pass));
+    $xml_invoice_settings
+      ->appendChild($this->xml->createElement('eszamla', 'true'));
+    $xml_invoice_settings
+      ->appendChild($this->xml->createElement('szamlaLetoltes', 'true'));
+    $xml_invoice_settings
+      ->appendChild($this->xml->createElement('szamlaLetoltesPld', '2'));
+    $xml_invoice_settings
+      ->appendChild($this->xml->createElement('valaszVerzio', '1'));
+    $this->xmlInvoice->appendChild($xml_invoice_settings);
 
     $xml_invoice_header = $this->xml->createElement('fejlec');
     $xml_invoice_header->appendChild($this->xml->createElement('keltDatum', date('Y-m-d')));
@@ -129,7 +136,7 @@ class SzamlazzGenerate extends ControllerBase {
     $xml_invoice_header->appendChild($this->xml->createElement('elolegszamla', 'false'));
     $xml_invoice_header->appendChild($this->xml->createElement('vegszamla', 'false'));
     $xml_invoice_header->appendChild($this->xml->createElement('dijbekero', 'false'));
-    $this->xml_invoice->appendChild($xml_invoice_header);
+    $this->xmlInvoice->appendChild($xml_invoice_header);
     return TRUE;
   }
 
@@ -138,14 +145,16 @@ class SzamlazzGenerate extends ControllerBase {
    */
   protected function setSeller() {
     $xml_invoice_seller = $this->xml->createElement('elado');
-    $this->xml_invoice->appendChild($xml_invoice_seller);
+    $this->xmlInvoice->appendChild($xml_invoice_seller);
   }
 
   /**
    * Set customer for xml document.
    *
    * @param mixed $order
+   *   Order data.
    * @param mixed $address
+   *   Client address.
    */
   protected function setCustomer($order, $address) {
     $xml_invoice_buyer = $this->xml->createElement('vevo');
@@ -164,7 +173,7 @@ class SzamlazzGenerate extends ControllerBase {
     $xml_invoice_buyer->appendChild($this->xml->createElement('telepules', $address['locality']));
     $xml_invoice_buyer->appendChild($this->xml->createElement('cim', $address['address_line1']));
     $xml_invoice_buyer->appendChild($this->xml->createElement('email', $order->get('mail')->getValue()[0]['value']));
-    $this->xml_invoice->appendChild($xml_invoice_buyer);
+    $this->xmlInvoice->appendChild($xml_invoice_buyer);
     return TRUE;
   }
 
@@ -172,6 +181,7 @@ class SzamlazzGenerate extends ControllerBase {
    * Set product lines for xml document.
    *
    * @param object $ordered_products
+   *   Object containing the ordered products.
    */
   protected function setProductLines($ordered_products) {
     $xml_invoice_line_items = $this->xml->createElement('tetelek');
@@ -209,15 +219,17 @@ class SzamlazzGenerate extends ControllerBase {
       $xml_invoice_line_items->appendChild($xml_invoice_line_item);
     }
 
-    $this->xml_invoice->appendChild($xml_invoice_line_items);
+    $this->xmlInvoice->appendChild($xml_invoice_line_items);
   }
 
   /**
    * Send data to szamlazz.hu agent.
    *
    * @param string $xmltext
+   *   Xml text.
    *
    * @return array
+   *   Return an array.
    *
    * @throws \exception
    */
@@ -317,9 +329,6 @@ class SzamlazzGenerate extends ControllerBase {
     }
     else {
 
-      // If ($download_invoice) {
-      //   Save the invoice locally if necessary
-      // }.
       $markup = [
         '#type' => 'markup',
         'message' => [

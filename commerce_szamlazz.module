@@ -14,7 +14,9 @@ use Drupal\views\ViewExecutable;
  * Implements hook_entity_operation_alter().
  *
  * @param array $operations
+ *   Operation parameter.
  * @param \Drupal\Core\Entity\EntityInterface $entity
+ *   The entity.
  */
 function commerce_szamlazz_entity_operation_alter(array &$operations, EntityInterface $entity) {
   if ($entity instanceof Order) {
@@ -28,7 +30,7 @@ function commerce_szamlazz_entity_operation_alter(array &$operations, EntityInte
 }
 
 /**
- *
+ * Implements hook_views_pre_view().
  */
 function commerce_szamlazz_views_pre_view(ViewExecutable $view, $display_id, array &$args) {
   if ($view->id() == 'commerce_orders' && $display_id === 'page_1') {

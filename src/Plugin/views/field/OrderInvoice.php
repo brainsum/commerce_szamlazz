@@ -19,6 +19,8 @@ use Drupal\views\ResultRow;
 class OrderInvoice extends FieldPluginBase {
 
   /**
+   * Leave empty to avoid a query on this field.
+   *
    * @{inheritdoc}
    */
   public function query() {
@@ -29,6 +31,7 @@ class OrderInvoice extends FieldPluginBase {
    * Define the available options.
    *
    * @return array
+   *   Returns an array.
    */
   protected function defineOptions() {
     $options = parent::defineOptions();
@@ -50,6 +53,8 @@ class OrderInvoice extends FieldPluginBase {
   }
 
   /**
+   * Render function.
+   *
    * @{inheritdoc}
    */
   public function render(ResultRow $values) {
