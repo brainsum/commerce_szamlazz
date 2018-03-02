@@ -4,7 +4,6 @@ namespace Drupal\commerce_szamlazz\Controller;
 
 use Drupal\commerce\Context;
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Entity\EntityInterface;
 
 /**
  * Szamlazz class.
@@ -23,13 +22,15 @@ class SzamlazzGenerate extends ControllerBase {
     if (!$commerce_order) {
       return NULL;
     }
-    if(isset($commerce_order->szamlazz_invoice_id->value)){
-      $invoice_link = '<a href="' . $commerce_order->szamlazz_invoice_id->uri . '">' . $commerce_order->szamlazz_invoice_id->title . '</a>';
-      drupal_set_message(t('Order already invoiced: <b>@invoice_number</b>', 
-        array('@invoice_number' => $commerce_order->szamlazz_invoice_id->value)), 'error');
+    if (isset($commerce_order->szamlazz_invoice_id->value)) {
+      $invoice_link = '<a href="' . $commerce_order->szamlazz_invoice_id->uri .
+      '">' . $commerce_order->szamlazz_invoice_id->title . '</a>';
+      drupal_set_message(t('Order already invoiced: <b>@invoice_number</b>',
+        ['@invoice_number' => $commerce_order->szamlazz_invoice_id->value]),
+      'error');
       return [
         '#type' => 'markup',
-        '#prefix' => '<a href="'.$_SERVER['HTTP_REFERER'].'">',
+        '#prefix' => '<a href="' . $_SERVER['HTTP_REFERER'] . '">',
         '#suffix' => '</a>',
         '#markup' => t('Return to previous page'),
       ];
@@ -48,23 +49,35 @@ class SzamlazzGenerate extends ControllerBase {
     }
     $ordered_products = $commerce_order->getItems();
 
-    // TODO-: set usable charset. (this is used in the example they have in the documentation)
+    // TODO-: set usable charset. (this is used in the example
+    // they have in the documentation)
     $this->xml = new \DOMDocument("1.0", "ISO-8859-2");
     $test = $this->prepareXmlHeader($config);
-    if(!$test){
-      return array(
+    if (!$test) {
+      return [
         '#type' => 'markup',
         '#prefix' => '<div>',
         '#suffix' => '</div>',
         '#markup' => '',
-      );
-    }else{
+      ];
+    }
+    else {
       $this->setSeller();
-      $this->setCustomer($commerce_order, $address);
+      $check = $this->setCustomer($commerce_order, $address);
+      if ($check == FALSE) {
+        drupal_set_message(t('Addres incomplete'), 'error', FALSE);
+
+        return [
+          '#type' => 'markup',
+          '#prefix' => '<div>',
+          '#suffix' => '</div>',
+          '#markup' => '',
+        ];
+      }
       $this->setProductLines($ordered_products);
       $this->xml->appendChild($this->xml_invoice);
 
-      return $this->sendData($this->xml->saveXML());      
+      return $this->sendData($this->xml->saveXML());
     }
   }
 
@@ -84,17 +97,17 @@ class SzamlazzGenerate extends ControllerBase {
     $agent_pass           = $config->get('szamlazz_password') ? $config->get('szamlazz_password') : FALSE;
 
     // todo-: break operation if agent user and password is empty.
-
     if (!$agent_user || !$agent_pass || strlen($agent_user) == 0) {
-      // throw new \exception('szamlazz.hu api user not set!');
-      // 
+      // Throw new \exception('szamlazz.hu api user not set!');
+      // .
       $user = \Drupal::currentUser()->getRoles();
-      if(in_array("administrator", $user)){
+      if (in_array("administrator", $user)) {
         drupal_set_message(t('Api credentials are not set!! Please set them <a href="/admin/commerce/config/szamlazz">Here</a>'), 'error');
-      }else{
+      }
+      else {
         drupal_set_message(t('Szamlazz api is not set correctly please contact the site administrator!'), 'error');
       }
-      return false;
+      return FALSE;
     }
 
     $xml_invoice_settings->appendChild($this->xml->createElement('felhasznalo', $agent_user));
@@ -117,7 +130,7 @@ class SzamlazzGenerate extends ControllerBase {
     $xml_invoice_header->appendChild($this->xml->createElement('vegszamla', 'false'));
     $xml_invoice_header->appendChild($this->xml->createElement('dijbekero', 'false'));
     $this->xml_invoice->appendChild($xml_invoice_header);
-    return true;
+    return TRUE;
   }
 
   /**
@@ -137,12 +150,22 @@ class SzamlazzGenerate extends ControllerBase {
   protected function setCustomer($order, $address) {
     $xml_invoice_buyer = $this->xml->createElement('vevo');
     // TODO: check address arrays are valid.
+    if (!isset($address['family_name']) ||
+      !isset($address['given_name']) ||
+      !isset($address['postal_code']) ||
+      !is_numeric($address['postal_code']) ||
+      !isset($address['locality']) ||
+      !isset($address['address_line1'])
+    ) {
+      return FALSE;
+    }
     $xml_invoice_buyer->appendChild($this->xml->createElement('nev', $address['family_name'] . ' ' . $address['given_name']));
     $xml_invoice_buyer->appendChild($this->xml->createElement('irsz', $address['postal_code']));
     $xml_invoice_buyer->appendChild($this->xml->createElement('telepules', $address['locality']));
     $xml_invoice_buyer->appendChild($this->xml->createElement('cim', $address['address_line1']));
     $xml_invoice_buyer->appendChild($this->xml->createElement('email', $order->get('mail')->getValue()[0]['value']));
     $this->xml_invoice->appendChild($xml_invoice_buyer);
+    return TRUE;
   }
 
   /**
@@ -171,7 +194,6 @@ class SzamlazzGenerate extends ControllerBase {
       }
 
       $xml_invoice_line_item = $this->xml->createElement('tetel');
-
       $quantity = $value->get('quantity')->value;
       $total_net = $net_unit_price * $quantity;
       $total_tax = $tax_value * $quantity;
@@ -241,7 +263,20 @@ class SzamlazzGenerate extends ControllerBase {
     $agent_body = substr($agent_response, $header_size);
     $http_error = curl_error($ch);
     curl_close($ch);
+    kint($http_error);    $http_error = 'Could not resolve host: www.szamlazz.hu';
+    $dbgt = debug_backtrace();
+    kint($dbgt);
+    kint($dbgt[0]['line']);
+    $line = $dbgt[0]['line'];
+    if (strlen($http_error) > 0) {
+      drupal_set_message(t('Invoice generation failed.'), 'error');
 
+      \Drupal::logger('commerce_szamlazz')->error('Http error with message: ' . $http_error . '(line %line of %file)');
+
+      return [
+        '#type' => 'markup',
+      ];
+    }
     // TODO: check http error.
     //
     // Delete temp xml file.

@@ -30,14 +30,16 @@ class ModuleConfigurationForm extends ConfigFormBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, FormStateInterface $form_state, Request $request = NULL) {
+  public function buildForm(array $form, FormStateInterface $form_state,
+    Request $request = NULL) {
     // Config get for default values;.
     $config = $this->config('commerce_szamlazz.settings');
 
     $form['szamlazz_user'] = [
       '#type'          => 'textfield',
       '#title'         => $this->t('Szamlazz api user name'),
-      '#description'   => $this->t('User name to be used when posting to commerce_szamlazz.hu'),
+      '#description'   =>
+      $this->t('User name to be used when posting to commerce_szamlazz.hu'),
       '#default_value' => $config->get('szamlazz_user'),
     ];
     $form['szamlazz_password'] = [
@@ -54,7 +56,8 @@ class ModuleConfigurationForm extends ConfigFormBase {
     $form['szamlazz_agent_url'] = [
       '#type'          => 'textfield',
       '#title'         => $this->t('Szamlazz.hu user agent url'),
-      '#default_value' => $config->get('szamlazz_agent_url') !== NULL ? $config->get('szamlazz_agent_url') : 'https://www.szamlazz.hu/szamla/',
+      '#default_value' => $config->get('szamlazz_agent_url') !== NULL ?
+      $config->get('szamlazz_agent_url') : 'https://www.szamlazz.hu/szamla/',
     ];
     return parent::buildForm($form, $form_state);
   }
