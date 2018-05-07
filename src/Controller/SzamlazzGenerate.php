@@ -23,16 +23,14 @@ class SzamlazzGenerate extends ControllerBase {
       return NULL;
     }
     if (isset($commerce_order->szamlazz_invoice_id->value)) {
-      $invoice_link = '<a href="' . $commerce_order->szamlazz_invoice_id->uri .
-      '">' . $commerce_order->szamlazz_invoice_id->title . '</a>';
-      drupal_set_message(t('Order already invoiced: <b>@invoice_number</b>',
+      drupal_set_message($this->t('Order already invoiced: <b>@invoice_number</b>',
         ['@invoice_number' => $commerce_order->szamlazz_invoice_id->value]),
       'error');
       return [
         '#type' => 'markup',
         '#prefix' => '<a href="' . $_SERVER['HTTP_REFERER'] . '">',
         '#suffix' => '</a>',
-        '#markup' => t('Return to previous page'),
+        '#markup' => $this->t('Return to previous page'),
       ];
     }
     $this->order = $commerce_order;
@@ -65,7 +63,7 @@ class SzamlazzGenerate extends ControllerBase {
       $this->setSeller();
       $check = $this->setCustomer($commerce_order, $address);
       if ($check == FALSE) {
-        drupal_set_message(t('Addres incomplete'), 'error', FALSE);
+        drupal_set_message($this->t('Addres incomplete'), 'error', FALSE);
 
         return [
           '#type' => 'markup',
@@ -103,10 +101,10 @@ class SzamlazzGenerate extends ControllerBase {
       // .
       $user = \Drupal::currentUser()->getRoles();
       if (in_array("administrator", $user)) {
-        drupal_set_message(t('Api credentials are not set!! Please set them <a href="/admin/commerce/config/szamlazz">Here</a>'), 'error');
+        drupal_set_message($this->t('Api credentials are not set!! Please set them <a href="/admin/commerce/config/szamlazz">Here</a>'), 'error');
       }
       else {
-        drupal_set_message(t('Szamlazz api is not set correctly please contact the site administrator!'), 'error');
+        drupal_set_message($this->t('Szamlazz api is not set correctly please contact the site administrator!'), 'error');
       }
       return FALSE;
     }
@@ -188,7 +186,7 @@ class SzamlazzGenerate extends ControllerBase {
 
     // Net price resolver.
     $price_chain_resolver = \Drupal::service('commerce_price.chain_price_resolver');
-    $context              = new Context(\Drupal::currentUser(), \Drupal::service('commerce_store.current_store')->getStore());
+    $context = new Context(\Drupal::currentUser(), \Drupal::service('commerce_store.current_store')->getStore());
 
     foreach ($ordered_products as $key => $value) {
       $net_unit_price = $price_chain_resolver->resolve($value->getPurchasedEntity(), 1, $context);
@@ -275,15 +273,12 @@ class SzamlazzGenerate extends ControllerBase {
     $agent_body = substr($agent_response, $header_size);
     $http_error = curl_error($ch);
     curl_close($ch);
-    kint($http_error);    $http_error = 'Could not resolve host: www.szamlazz.hu';
     $dbgt = debug_backtrace();
-    kint($dbgt);
-    kint($dbgt[0]['line']);
     $line = $dbgt[0]['line'];
     if (strlen($http_error) > 0) {
-      drupal_set_message(t('Invoice generation failed.'), 'error');
+      drupal_set_message($this->t('Invoice generation failed.'), 'error');
 
-      \Drupal::logger('commerce_szamlazz')->error('Http error with message: ' . $http_error . '(line %line of %file)');
+      \Drupal::logger('commerce_szamlazz')->error('Http error with message: ' . $http_error);
 
       return [
         '#type' => 'markup',
@@ -317,7 +312,8 @@ class SzamlazzGenerate extends ControllerBase {
       }
       if (substr($val, 0, strlen('Content-Disposition:')) === 'Content-Disposition:') {
         $invoicelink = explode('filename=', $val);
-        $invoice_link = 'https://www.szamlazz.hu/szamla/genpdf/' . $invoicelink[1];
+        // $invoice_link = 'https://www.szamlazz.hu/szamla/genpdf/' .
+        // $invoicelink[1];.
       }
     }
 
@@ -325,7 +321,7 @@ class SzamlazzGenerate extends ControllerBase {
 
     }
     if ($is_error) {
-      throw new \exception(t('Unable to create invoice.') . $agent_error_code);
+      throw new \exception($this->t('Unable to create invoice.') . $agent_error_code);
     }
     else {
 
@@ -334,11 +330,11 @@ class SzamlazzGenerate extends ControllerBase {
         'message' => [
           '#prefix' => '<h2>',
           '#suffix' => '</h2>',
-          '#markup' => t('Invoice generated successfully, invoice number: <u>@invoice</u>', ['@invoice' => $invoice_number]),
+          '#markup' => $this->t('Invoice generated successfully, invoice number: <u>@invoice</u>', ['@invoice' => $invoice_number]),
           'szamlak' => [
             '#prefix' => '<div><a href="https://www.szamlazz.hu/szamla/szamlakereso">',
             '#suffix' => '</a></div>',
-            '#markup' => t('Click to view all invoces'),
+            '#markup' => $this->t('Click to view all invoces'),
           ],
         ],
         'return' => [
@@ -347,7 +343,7 @@ class SzamlazzGenerate extends ControllerBase {
           'link' => [
             '#prefix' => '<a href="/admin/commerce/orders">',
             '#suffix' => '</a>',
-            '#markup' => t('Return to orders'),
+            '#markup' => $this->t('Return to orders'),
           ],
         ],
       ];

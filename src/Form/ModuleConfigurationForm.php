@@ -2,6 +2,7 @@
 
 namespace Drupal\commerce_szamlazz\Form;
 
+use Drupal\Core\Config\ConfigFactory;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -67,7 +68,7 @@ class ModuleConfigurationForm extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    \Drupal::configFactory()->getEditable('commerce_szamlazz.settings')
+    configFactory()->getEditable('commerce_szamlazz.settings')
     // Set the submitted configuration setting.
       ->set('szamlazz_user', $form_state->getValue('szamlazz_user'))
       ->set('szamlazz_password', $form_state->getValue('szamlazz_password'))
