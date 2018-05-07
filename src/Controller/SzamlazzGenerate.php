@@ -188,7 +188,7 @@ class SzamlazzGenerate extends ControllerBase {
     $price_chain_resolver = \Drupal::service('commerce_price.chain_price_resolver');
     $context = new Context(\Drupal::currentUser(), \Drupal::service('commerce_store.current_store')->getStore());
 
-    foreach ($ordered_products as $key => $value) {
+    foreach ($ordered_products as $value) {
       $net_unit_price = $price_chain_resolver->resolve($value->getPurchasedEntity(), 1, $context);
       $net_unit_price = $net_unit_price->getNumber();
       $adjustments = $value->get('adjustments')->getValue();
@@ -240,10 +240,9 @@ class SzamlazzGenerate extends ControllerBase {
 
     $agent_url = $this->config->get('szamlazz_agent_url');
 
-    $download_invoice = TRUE;
-    $ch               = curl_init($agent_url);
+    $ch = curl_init($agent_url);
 
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, TRUE);
     curl_setopt($ch, CURLOPT_POST, TRUE);
     curl_setopt($ch, CURLOPT_HEADER, TRUE);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
@@ -261,7 +260,7 @@ class SzamlazzGenerate extends ControllerBase {
     $agent_response = curl_exec($ch);
     $http_error     = curl_error($ch);
 
-    $agent_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    // $agent_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
     $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 
@@ -270,11 +269,11 @@ class SzamlazzGenerate extends ControllerBase {
     preg_match_all('|Set-Cookie: (.*);|U', $agent_header, $cookie_results);
     $_SESSION['szamlazz_cookie'] = implode(';', $cookie_results[1]);
 
-    $agent_body = substr($agent_response, $header_size);
+    // $agent_body = substr($agent_response, $header_size);
     $http_error = curl_error($ch);
     curl_close($ch);
     $dbgt = debug_backtrace();
-    $line = $dbgt[0]['line'];
+    // $line = $dbgt[0]['line'];
     if (strlen($http_error) > 0) {
       drupal_set_message($this->t('Invoice generation failed.'), 'error');
 
@@ -293,14 +292,12 @@ class SzamlazzGenerate extends ControllerBase {
 
     $is_error = FALSE;
 
-    $agent_error      = '';
     $agent_error_code = '';
     $invoice_number   = '';
     foreach ($header_array as $val) {
       if (substr($val, 0, strlen('szlahu')) === 'szlahu') {
         if (substr($val, 0, strlen('szlahu_error:')) === 'szlahu_error:') {
-          $is_error    = TRUE;
-          $agent_error = substr($val, strlen('szlahu_error:'));
+          $is_error = TRUE;
         }
         if (substr($val, 0, strlen('szlahu_error_code:')) === 'szlahu_error_code:') {
           $is_error         = TRUE;
@@ -310,11 +307,11 @@ class SzamlazzGenerate extends ControllerBase {
           $invoice_number = trim(substr($val, strlen('szlahu_szamlaszam:')));
         }
       }
-      if (substr($val, 0, strlen('Content-Disposition:')) === 'Content-Disposition:') {
-        $invoicelink = explode('filename=', $val);
+      // if (substr($val, 0, strlen('Content-Disposition:')) === 'Content-Disposition:') {
+        // $invoicelink = explode('filename=', $val);
         // $invoice_link = 'https://www.szamlazz.hu/szamla/genpdf/' .
         // $invoicelink[1];.
-      }
+      // }
     }
 
     if ($http_error != "") {
