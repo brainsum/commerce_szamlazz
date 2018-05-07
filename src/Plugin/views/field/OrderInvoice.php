@@ -2,10 +2,7 @@
 
 namespace Drupal\commerce_szamlazz\Plugin\views\field;
 
-use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Link;
-
-use Drupal\node\Entity\NodeType;
 use Drupal\views\Plugin\views\field\FieldPluginBase;
 use Drupal\views\ResultRow;
 
@@ -36,15 +33,6 @@ class OrderInvoice extends FieldPluginBase {
   protected function defineOptions() {
     $options = parent::defineOptions();
     return $options;
-  }
-
-  /**
-   * Provide the options form.
-   */
-  public function buildOptionsForm(&$form, FormStateInterface $form_state) {
-    $types = NodeType::loadMultiple();
-
-    parent::buildOptionsForm($form, $form_state);
   }
 
   /**
