@@ -260,8 +260,6 @@ class SzamlazzGenerate extends ControllerBase {
     $agent_response = curl_exec($ch);
     $http_error     = curl_error($ch);
 
-    // $agent_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
     $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 
     $agent_header = substr($agent_response, 0, $header_size);
@@ -269,11 +267,9 @@ class SzamlazzGenerate extends ControllerBase {
     preg_match_all('|Set-Cookie: (.*);|U', $agent_header, $cookie_results);
     $_SESSION['szamlazz_cookie'] = implode(';', $cookie_results[1]);
 
-    // $agent_body = substr($agent_response, $header_size);
     $http_error = curl_error($ch);
     curl_close($ch);
     $dbgt = debug_backtrace();
-    // $line = $dbgt[0]['line'];
     if (strlen($http_error) > 0) {
       drupal_set_message($this->t('Invoice generation failed.'), 'error');
 
@@ -307,11 +303,6 @@ class SzamlazzGenerate extends ControllerBase {
           $invoice_number = trim(substr($val, strlen('szlahu_szamlaszam:')));
         }
       }
-      // if (substr($val, 0, strlen('Content-Disposition:')) === 'Content-Disposition:') {
-        // $invoicelink = explode('filename=', $val);
-        // $invoice_link = 'https://www.szamlazz.hu/szamla/genpdf/' .
-        // $invoicelink[1];.
-      // }
     }
 
     if ($http_error != "") {

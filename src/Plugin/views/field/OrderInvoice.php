@@ -44,10 +44,6 @@ class OrderInvoice extends FieldPluginBase {
   public function buildOptionsForm(&$form, FormStateInterface $form_state) {
     $types = NodeType::loadMultiple();
 
-    // foreach ($types as $key => $type) {
-    //   $options[$key] = $type->label();
-    // }
-
     parent::buildOptionsForm($form, $form_state);
   }
 
