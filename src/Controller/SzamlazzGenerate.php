@@ -4,6 +4,12 @@ namespace Drupal\commerce_szamlazz\Controller;
 
 use Drupal\commerce\Context;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Config\ConfigFactory;
+use Drupal\commerce_price\Resolver\ChainPriceResolverInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Core\Session\AccountProxy;
+use Drupal\Core\Logger\LoggerChannelFactory;
+use Drupal\commerce_store\CurrentStore;
 
 /**
  * Szamlazz class.
@@ -12,8 +18,40 @@ class SzamlazzGenerate extends ControllerBase {
 
   protected $xml;
   protected $xmlInvoice;
-  protected $config;
+  protected $configFactory;
+  protected $priceResolver;
   protected $order;
+  protected $currentUser;
+  protected $logger;
+  protected $currentStore;
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __construct(configFactory $config_factory,
+                              ChainPriceResolverInterface $price_resolver,
+                              AccountProxy $current_user,
+                              LoggerChannelFactory $logger,
+                              currentStore $current_store) {
+    $this->configFactory = $config_factory->get('commerce_szamlazz.settings');
+    $this->priceResolver = $price_resolver;
+    $this->currentUser = $current_user;
+    $this->logger = $logger;
+    $this->currentStore = $current_store;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static (
+      $container->get('config.factory'),
+      $container->get('commerce_price.chain_price_resolver'),
+      $container->get('current_user'),
+      $container->get('logger.factory'),
+      $container->get('commerce_store.current_store')
+    );
+  }
 
   /**
    * Implements szmalazz.hu invoice generation code.
@@ -35,13 +73,9 @@ class SzamlazzGenerate extends ControllerBase {
     }
     $this->order = $commerce_order;
 
-    // $service = \Drupal::service('commerce_tax.tax_order_processor');
-    // $tax_type_storage = $service->process($commerce_order);
-    $config       = \Drupal::config('commerce_szamlazz.settings');
-    $this->config = $config;
-    $profile      = $commerce_order->getBillingProfile();
-    $data         = $profile->get('address')->getValue();
-    $address      = [];
+    $profile = $commerce_order->getBillingProfile();
+    $data = $profile->get('address')->getValue();
+    $address = [];
     if (isset($data[0])) {
       $address = $data[0];
     }
@@ -50,7 +84,7 @@ class SzamlazzGenerate extends ControllerBase {
     // TODO-: set usable charset. (this is used in the example
     // they have in the documentation)
     $this->xml = new \DOMDocument("1.0", "ISO-8859-2");
-    $test = $this->prepareXmlHeader($config);
+    $test = $this->prepareXmlHeader($this->configFactory);
     if (!$test) {
       return [
         '#type' => 'markup',
@@ -99,7 +133,7 @@ class SzamlazzGenerate extends ControllerBase {
     if (!$agent_user || !$agent_pass || strlen($agent_user) == 0) {
       // Throw new \exception('szamlazz.hu api user not set!');
       // .
-      $user = \Drupal::currentUser()->getRoles();
+      $user = $this->currentUser->getRoles();
       if (in_array("administrator", $user)) {
         drupal_set_message($this->t('Api credentials are not set!! Please set them <a href="/admin/commerce/config/szamlazz">Here</a>'), 'error');
       }
@@ -185,9 +219,8 @@ class SzamlazzGenerate extends ControllerBase {
     $xml_invoice_line_items = $this->xml->createElement('tetelek');
 
     // Net price resolver.
-    $price_chain_resolver = \Drupal::service('commerce_price.chain_price_resolver');
-    $context = new Context(\Drupal::currentUser(), \Drupal::service('commerce_store.current_store')->getStore());
-
+    $price_chain_resolver = $this->priceResolver;
+    $context = new Context($this->currentUser, $this->currentStore->getStore());
     foreach ($ordered_products as $value) {
       $net_unit_price = $price_chain_resolver->resolve($value->getPurchasedEntity(), 1, $context);
       $net_unit_price = $net_unit_price->getNumber();
@@ -238,7 +271,7 @@ class SzamlazzGenerate extends ControllerBase {
     fwrite($handle, $xmltext);
     fclose($handle);
 
-    $agent_url = $this->config->get('szamlazz_agent_url');
+    $agent_url = $this->configFactory->get('szamlazz_agent_url');
 
     $ch = curl_init($agent_url);
 
@@ -273,7 +306,7 @@ class SzamlazzGenerate extends ControllerBase {
     if (strlen($http_error) > 0) {
       drupal_set_message($this->t('Invoice generation failed.'), 'error');
 
-      \Drupal::logger('commerce_szamlazz')->error('Http error with message: ' . $http_error);
+      $this->logger('commerce_szamlazz')->error('Http error with message: ' . $http_error);
 
       return [
         '#type' => 'markup',
