@@ -302,7 +302,6 @@ class SzamlazzGenerate extends ControllerBase {
 
     $http_error = curl_error($ch);
     curl_close($ch);
-    $dbgt = debug_backtrace();
     if (strlen($http_error) > 0) {
       drupal_set_message($this->t('Invoice generation failed.'), 'error');
 
